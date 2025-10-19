@@ -142,6 +142,8 @@ def main(df):
 
     # Aplicar o classificador baseado em regras ao conjunto de teste
     print("\nAplicando classificador baseado em regras ao conjunto de teste...")
+
+    test_df['sentiment_score'] = test_df['processed_tokens_no_punct'].apply(get_sentiment_score) # Calcular o sentiment_score também no conjunto de teste
     test_df['predicted_label'] = test_df.apply(classify_with_rules, axis=1) # Passa a linha inteira para a função de regras
 
     # Calcular as métricas de avaliação
