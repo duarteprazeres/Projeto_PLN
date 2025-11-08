@@ -2,152 +2,214 @@ import pandas as pd
 import os
 import re
 import numpy as np
-from sklearn.model_selection import train_test_split
+
+# Imports de ML
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
 
-from utils import preprocess_text, calculate_metrics, OFFENSIVE_TERMS, get_sentiment_score, extract_manual_features
+# Imports do teu ficheiro utils.py
+try:
+    from utils import (
+        preprocess_text,
+        calculate_metrics,
+        gerar_lexico_ofensivo,
+        get_sentiment_score,
+        OFFENSIVE_TERMS,
+        STOPWORDS_PT
+    )
+except ImportError:
+    print("Erro: Não foi possível encontrar o ficheiro 'utils.py'.")
+    print("Certifica-te de que 'utils.py' está na mesma pasta que 'meta2.py'.")
+    exit()
 
-def load_and_preprocess_data(df):
+# --- Configurações ---
+OUTPUT_DIR = 'output_meta2'
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def load_and_feature_engineer(df):
+    """
+    Carrega os dados e aplica a engenharia de features linguísticas.
+    Esta função prepara o DataFrame para ser usado pelos Pipelines.
+    """
     print("Carregando e pré-processando os dados...")
     df = df[['comentario', 'label_final']].copy()
     df.rename(columns={'comentario': 'text', 'label_final': 'label'}, inplace=True)
-    df['processed_tokens_with_punct'], df['original_text'] = zip(*df['text'].apply(preprocess_text, remove_punctuation=False, apply_stemming=False))
-    df['processed_tokens_no_punct'], _ = zip(*df['text'].apply(preprocess_text, remove_punctuation=True, apply_stemming=False))
+    
+    # 1. Pré-processar o texto para obter tokens (para features linguísticas)
+    # Usamos apply_stemming=False para léxicos e sentimento, como no teu utils
+    processed_data = df['text'].apply(preprocess_text, remove_punctuation=True, apply_stemming=False)
+    df['tokens_no_punct'], df['original_text'] = zip(*processed_data)
+
+    print("Extraindo features linguísticas...")
+    
+    # 2. Extrair Features Linguísticas
     df['exclamation_count'] = df['original_text'].apply(lambda x: x.count('!'))
     df['question_mark_count'] = df['original_text'].apply(lambda x: x.count('?'))
-    df['repeated_punct'] = df['original_text'].apply(lambda x: bool(re.search(r'([!?.]){2,}', x)))
-    df['sentiment_score'] = df['processed_tokens_no_punct'].apply(get_sentiment_score)
-    print(f"Total de {len(df)} amostras.")
+    df['repeated_punct'] = df['original_text'].apply(lambda x: bool(re.search(r'([!?.]){2,}', x))).astype(int)
+    df['caps_ratio'] = df['original_text'].apply(lambda x: sum(1 for c in x if c.isupper()) / (len(x) + 1e-6))
+    df['sentiment_score'] = df['tokens_no_punct'].apply(get_sentiment_score)
+    
+    # 3. Gerar Léxico Ofensivo (com base nos dados de treino)
+    # Nota: Idealmente, isto seria feito *após* o split, apenas no train_df.
+    # Mas para simplificar, geramos com todos os dados como no teu script.
+    lexico_automatico = gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3)
+    COMBINED_LEXICON = OFFENSIVE_TERMS.union(lexico_automatico)
+    
+    # 4. Extrair Feature de Contagem Ofensiva
+    df['offensive_term_count'] = df['tokens_no_punct'].apply(lambda tokens: sum(1 for token in tokens if token in COMBINED_LEXICON))
+    
+    print(f"Total de {len(df)} amostras processadas.")
     return df
 
-def classify_with_rules(row):
-    tokens_no_punct = row['processed_tokens_no_punct']
-    sentiment_score = row['sentiment_score']
-    exclamation_count = row['exclamation_count']
-    repeated_punct = row['repeated_punct']
-    if any(term in tokens_no_punct for term in OFFENSIVE_TERMS):
-        return 1
-    if sentiment_score < -0.6:
-        return 1
-    if exclamation_count >= 2:
-        return 1
-    if repeated_punct:
-        return 1
-    if any(term in tokens_no_punct for term in OFFENSIVE_TERMS) and repeated_punct:
-        return 1
-    return 0
-
-def run_rules_baseline(test_df):
-    print("\n========== Baseline: Classificador por Regras ==========")
-    test_df['predicted_label_regras'] = test_df.apply(classify_with_rules, axis=1)
-    y_true = test_df['label']
-    y_pred = test_df['predicted_label_regras']
-    accuracy, precision, recall, f1, cm, report = calculate_metrics(y_true, y_pred)
-    print("=== Resultados Classificador por Regras ===")
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão (Ofensivo): {precision:.4f}")
-    print(f"Recall (Ofensivo): {recall:.4f}")
-    print(f"F1-Score (Ofensivo): {f1:.4f}")
-    print("Matriz de Confusão:\n", cm)
-    print("Relatório de Classificação:\n", report)
-    return accuracy, precision, recall, f1
-
-def run_logistic_regression(X_train, X_test, y_train, y_test):
-    print("\n========== Modelo: Regressão Logística ==========")
-    clf = LogisticRegression(max_iter=200)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    accuracy, precision, recall, f1, cm, report = calculate_metrics(y_test, y_pred)
-    print("=== Resultados Regressão Logística ===")
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão (Ofensivo): {precision:.4f}")
-    print(f"Recall (Ofensivo): {recall:.4f}")
-    print(f"F1-Score (Ofensivo): {f1:.4f}")
-    print("Matriz de Confusão:\n", cm)
-    print("Relatório de Classificação:\n", report)
-    return accuracy, precision, recall, f1
-
-def run_random_forest(X_train, X_test, y_train, y_test):
-    print("\n========== Modelo: Random Forest ==========")
-    clf = RandomForestClassifier()
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    accuracy, precision, recall, f1, cm, report = calculate_metrics(y_test, y_pred)
-    print("=== Resultados Random Forest ===")
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão (Ofensivo): {precision:.4f}")
-    print(f"Recall (Ofensivo): {recall:.4f}")
-    print(f"F1-Score (Ofensivo): {f1:.4f}")
-    print("Matriz de Confusão:\n", cm)
-    print("Relatório de Classificação:\n", report)
-    return accuracy, precision, recall, f1
-
-def run_svm(X_train, X_test, y_train, y_test):
-    print("\n========== Modelo: SVM (Linear) ==========")
-    clf = LinearSVC()
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    accuracy, precision, recall, f1, cm, report = calculate_metrics(y_test, y_pred)
-    print("=== Resultados SVM Linear ===")
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão (Ofensivo): {precision:.4f}")
-    print(f"Recall (Ofensivo): {recall:.4f}")
-    print(f"F1-Score (Ofensivo): {f1:.4f}")
-    print("Matriz de Confusão:\n", cm)
-    print("Relatório de Classificação:\n", report)
-    return accuracy, precision, recall, f1
-
-def main(df):
-    df = load_and_preprocess_data(df)
-
-    from utils import gerar_lexico_ofensivo, STOPWORDS_PT, OFFENSIVE_TERMS
-
-    # Geração automática do léxico a partir do dataset preprocessado
-    lexico_automatico = gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3)
-
-    OFFENSIVE_TERMS = OFFENSIVE_TERMS.union(lexico_automatico)
-    print("Conjunto final de termos ofensivos (manual + automático):")
-    print(OFFENSIVE_TERMS)
-
+def main():
+    """Função principal para executar a Meta 2 com Pipelines e GridSearchCV."""
+    
+    print("A carregar o dataset HateBR do Hugging Face...")
+    df = pd.read_csv("hf://datasets/franciellevargas/HateBR/HateBR.csv")
+    
+    # 1. Processar dados e extrair features
+    df = load_and_feature_engineer(df)
+    
+    # 2. Dividir os dados (o DataFrame completo)
     train_df, test_df = train_test_split(df, test_size=0.3, random_state=42, stratify=df['label'])
+    y_train = train_df['label']
+    y_test = test_df['label']
     print(f"\n=== Divisão dos dados ===")
     print(f"Treino={len(train_df)} | Teste={len(test_df)}")
     
-    # Baseline por regras
-    acc_rules, prec_rules, rec_rules, f1_rules = run_rules_baseline(test_df)
+    all_results = []
 
-    # Features para ML
-    X_train_manual = extract_manual_features(train_df)
-    X_test_manual = extract_manual_features(test_df)
-    tfidf = TfidfVectorizer(ngram_range=(1,2), max_features=1000)
-    X_train_tfidf = tfidf.fit_transform(train_df['text'])
-    X_test_tfidf = tfidf.transform(test_df['text'])
-    X_train = np.hstack([X_train_tfidf.toarray(), X_train_manual])
-    X_test = np.hstack([X_test_tfidf.toarray(), X_test_manual])
-    y_train = train_df['label']
-    y_test = test_df['label']
+    # --- META 2: Engenharia de Features com Pipelines ---
+    
+    # Definir as colunas para cada transformador
+    LINGUISTIC_FEATURES = [
+        'exclamation_count', 'question_mark_count', 'repeated_punct',
+        'caps_ratio', 'offensive_term_count', 'sentiment_score'
+    ]
+    TEXT_FEATURE = 'text' # Coluna de texto original para o TF-IDF
 
-    # Regressão Logística
-    acc_lr, prec_lr, rec_lr, f1_lr = run_logistic_regression(X_train, X_test, y_train, y_test)
+    # Abordagem 1: TF-IDF (Conteúdo do Texto)
+    preprocessor_tfidf = ColumnTransformer(
+        transformers=[
+            ('tfidf', TfidfVectorizer(ngram_range=(1, 2), max_features=2000, stop_words=list(STOPWORDS_PT)), TEXT_FEATURE)
+        ],
+        remainder='drop') # Ignora as colunas linguísticas
 
-    # Random Forest
-    acc_rf, prec_rf, rec_rf, f1_rf = run_random_forest(X_train, X_test, y_train, y_test)
+    # Abordagem 2: Linguística (Conhecimento Linguístico)
+    preprocessor_ling = ColumnTransformer(
+        transformers=[
+            ('linguistic', StandardScaler(), LINGUISTIC_FEATURES)
+        ],
+        remainder='drop') # Ignora a coluna de texto
 
-    # SVM Linear
-    acc_svm, prec_svm, rec_svm, f1_svm = run_svm(X_train, X_test, y_train, y_test)
+    # Abordagem 3: Híbrida (TF-IDF + Linguística)
+    preprocessor_hybrid = ColumnTransformer(
+        transformers=[
+            ('tfidf', TfidfVectorizer(ngram_range=(1, 2), max_features=2000, stop_words=list(STOPWORDS_PT)), TEXT_FEATURE),
+            ('linguistic', StandardScaler(), LINGUISTIC_FEATURES)
+        ],
+        remainder='drop') # Ignora outras colunas
 
-    print("\n\n========== Resumo dos Modelos ==========")
-    print("Modelo                Acurácia   Precisão   Recall     F1")
-    print("------------------------------------------------------------")
-    print(f"Regras               {acc_rules:.4f}    {prec_rules:.4f}    {rec_rules:.4f}    {f1_rules:.4f}")
-    print(f"Reg. Logística       {acc_lr:.4f}    {prec_lr:.4f}    {rec_lr:.4f}    {f1_lr:.4f}")
-    print(f"Random Forest        {acc_rf:.4f}    {prec_rf:.4f}    {rec_rf:.4f}    {f1_rf:.4f}")
-    print(f"SVM Linear           {acc_svm:.4f}    {prec_svm:.4f}    {rec_svm:.4f}    {f1_svm:.4f}")
-    print("------------------------------------------------------------")
+    # Dicionário de conjuntos de features (pré-processadores)
+    feature_sets = {
+        "Ab. 1: TF-IDF": preprocessor_tfidf,
+        "Ab. 2: Linguística": preprocessor_ling,
+        "Ab. 3: Híbrida": preprocessor_hybrid
+    }
+
+    # --- META 2: Matriz de Experimentação com GridSearchCV ---
+    
+    # Modelos para testar
+    models_to_test = {
+        "Reg. Logística": LogisticRegression(max_iter=300, random_state=42),
+        "SVM Linear": LinearSVC(random_state=42, dual=True, max_iter=2000)
+        # RandomForest é omitido por ser muito lento com GridSearchCV
+    }
+    
+    # Hiperparâmetros para otimizar
+    param_grids = {
+        "Reg. Logística": {'clf__C': [0.1, 1, 10]}, # Procura o melhor C
+        "SVM Linear": {'clf__C': [0.1, 1, 10]}      # Procura o melhor C
+    }
+
+    print("\n=== META 2: Iniciando Matriz de Experimentação (com GridSearchCV) ===")
+
+    for model_name, model in models_to_test.items():
+        for feature_name, preprocessor in feature_sets.items():
+            
+            print(f"\n--- Testando: {model_name} | Features: {feature_name} ---")
+            
+            # 1. Criar o Pipeline completo
+            pipeline = Pipeline(steps=[
+                ('preprocessor', preprocessor),
+                ('clf', model)
+            ])
+            
+            # 2. Definir o Grid de Parâmetros
+            # (Ajusta os parâmetros do grid para este pipeline específico)
+            current_param_grid = {k: v for k, v in param_grids[model_name].items()}
+
+            # 3. Executar o GridSearchCV
+            # cv=3 faz 3-fold cross-validation
+            # scoring='f1' foca na métrica F1 para a classe positiva (Ofensivo)
+            grid_search = GridSearchCV(pipeline, current_param_grid, cv=3, scoring='f1', n_jobs=-1)
+            
+            # O fit é feito no DataFrame 'cru'
+            # O pipeline trata de aplicar o ColumnTransformer
+            grid_search.fit(train_df, y_train) 
+            
+            print(f"Melhor pontuação F1 (em validação cruzada): {grid_search.best_score_:.4f}")
+            print(f"Melhores parâmetros encontrados: {grid_search.best_params_}")
+
+            # 4. Avaliar o melhor modelo no conjunto de teste
+            y_pred = grid_search.predict(test_df)
+            
+            # 5. Calcular métricas
+            accuracy, precision, recall, f1, cm, report = calculate_metrics(y_test, y_pred)
+            
+            # 6. Guardar resultados
+            all_results.append({
+                "Modelo": model_name,
+                "Features": feature_name,
+                "Melhor F1 (CV)": grid_search.best_score_,
+                "F1 (Teste)": f1,
+                "Precisão (Teste)": precision,
+                "Recall (Teste)": recall,
+                "Melhores Parâmetros": str(grid_search.best_params_)
+            })
+
+            # Salvar relatório individual
+            report_path = os.path.join(OUTPUT_DIR, f'report__{model_name}__{feature_name.replace(":", "")}.txt')
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(f"Modelo: {model_name} com Features: {feature_name}\n")
+                f.write(f"Melhores Parâmetros: {grid_search.best_params_}\n\n")
+                f.write(report)
+                f.write("\nMatriz de Confusão:\n")
+                f.write(str(cm))
+
+    # --- Apresentação Final dos Resultados ---
+    print("\n\n========== Resumo Comparativo da Meta 2 (Otimizado) ==========")
+    
+    results_df = pd.DataFrame(all_results)
+    results_df = results_df.sort_values(by="F1 (Teste)", ascending=False)
+    
+    pd.set_option('display.float_format', lambda x: f'{x:.4f}')
+    
+    # Mostrar colunas principais
+    print(results_df[['Modelo', 'Features', 'F1 (Teste)', 'Precisão (Teste)', 'Recall (Teste)', 'Melhores Parâmetros']].to_string(index=False))
+    
+    # Salvar tabela resumo
+    results_df.to_csv(os.path.join(OUTPUT_DIR, 'results_summary_meta2.csv'), index=False)
+    
+    print("---------------------------------------------------------------")
+    print(f"\nAnálise concluída. Relatórios individuais e resumo salvos em '{OUTPUT_DIR}'")
 
 if __name__ == "__main__":
-    df = pd.read_csv("hf://datasets/franciellevargas/HateBR/HateBR.csv")
-    main(df)
+    main()
