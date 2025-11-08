@@ -106,7 +106,7 @@ def main(df):
     from utils import gerar_lexico_ofensivo, STOPWORDS_PT, OFFENSIVE_TERMS
 
     # Geração automática do léxico a partir do dataset preprocessado
-    lexico_automatico = gerar_lexico_ofensivo(df, n=40, stopwords=STOPWORDS_PT)
+    lexico_automatico = gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3)
 
     OFFENSIVE_TERMS = OFFENSIVE_TERMS.union(lexico_automatico)
     print("Conjunto final de termos ofensivos (manual + automático):")

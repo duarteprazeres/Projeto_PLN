@@ -81,18 +81,25 @@ OFFENSIVE_TERMS = {
     'caluniar', 'difamar', 'xingar', 'processar'
 }
 
-def gerar_lexico_ofensivo(df, n=40, stopwords=None, extra_filtrar=None):
+def gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3):
     """
-    Gera os n termos mais comuns em textos ofensivos do dataset.
+    Extrai termos ofensivos automáticos: presentes em ofensivos com frequência
+    muito superior à de não ofensivos (min_ratio vezes mais), e com frequência mínima min_freq.
+    É 100% automático e não depende de filtro manual.
     """
     ofensivos = df[df['label'] == 1]['processed_tokens_no_punct'].explode()
-    freq = Counter(ofensivos)
-    termos = [w for w, _ in freq.most_common(n*2)]
-    if stopwords is not None:
-        termos = [w for w in termos if w not in stopwords]
-    if extra_filtrar is not None:
-        termos = [w for w in termos if w not in extra_filtrar]
-    return set(termos[:n])
+    nao_ofensivos = df[df['label'] == 0]['processed_tokens_no_punct'].explode()
+    freq_of = Counter(ofensivos)
+    freq_no = Counter(nao_ofensivos)
+    termos = []
+    for term in freq_of:
+        if freq_of[term] < min_freq:
+            continue
+        ratio = freq_of[term] / (freq_no[term] + 1)
+        if ratio >= min_ratio:
+            termos.append(term)
+    return set(termos)
+
 
 
 # --- Léxicos de Sentimento (Exemplo Simplificado) ---
