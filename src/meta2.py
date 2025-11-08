@@ -10,9 +10,6 @@ from sklearn.svm import LinearSVC
 
 from utils import preprocess_text, calculate_metrics, OFFENSIVE_TERMS, get_sentiment_score, extract_manual_features
 
-OUTPUT_DIR = 'output'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 def load_and_preprocess_data(df):
     print("Carregando e pré-processando os dados...")
     df = df[['comentario', 'label_final']].copy()
@@ -105,6 +102,16 @@ def run_svm(X_train, X_test, y_train, y_test):
 
 def main(df):
     df = load_and_preprocess_data(df)
+
+    from utils import gerar_lexico_ofensivo, STOPWORDS_PT, OFFENSIVE_TERMS
+
+    # Geração automática do léxico a partir do dataset preprocessado
+    lexico_automatico = gerar_lexico_ofensivo(df, n=40, stopwords=STOPWORDS_PT)
+
+    OFFENSIVE_TERMS = OFFENSIVE_TERMS.union(lexico_automatico)
+    print("Conjunto final de termos ofensivos (manual + automático):")
+    print(OFFENSIVE_TERMS)
+
     train_df, test_df = train_test_split(df, test_size=0.3, random_state=42, stratify=df['label'])
     print(f"\n=== Divisão dos dados ===")
     print(f"Treino={len(train_df)} | Teste={len(test_df)}")
