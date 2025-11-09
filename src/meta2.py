@@ -121,15 +121,14 @@ def main():
     feature_sets = {
         "Ab. 1: TF-IDF": preprocessor_tfidf,
         "Ab. 2: Linguística": preprocessor_ling,
-        "Ab. 3: Híbrida": preprocessor_hybrid
-    }
+        "Ab. 3: Híbrida": preprocessor_hybrid    }
 
     # --- META 2: Matriz de Experimentação com GridSearchCV ---
     
     # Modelos para testar
     models_to_test = {
         "Reg. Logística": LogisticRegression(max_iter=300, random_state=42),
-        "SVM Linear": LinearSVC(random_state=42, dual=True, max_iter=2000)
+        "SVM Linear": LinearSVC(random_state=42, dual=True, max_iter=5000)
         # RandomForest é omitido por ser muito lento com GridSearchCV
     }
     
