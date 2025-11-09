@@ -56,13 +56,22 @@ def load_and_feature_engineer(df):
     df['caps_ratio'] = df['original_text'].apply(lambda x: sum(1 for c in x if c.isupper()) / (len(x) + 1e-6))
     df['sentiment_score'] = df['tokens_no_punct'].apply(get_sentiment_score)
     
-    # 3. Gerar Léxico Ofensivo (com base nos dados de treino)
+     # 3. Dividir os dados (o DataFrame completo)
+    train_df, test_df = train_test_split(df, test_size=0.3, random_state=42, stratify=df['label'])
+    y_train = train_df['label']
+    y_test = test_df['label']
+    print(f"\n=== Divisão dos dados ===")
+    print(f"Treino={len(train_df)} | Teste={len(test_df)}")
+    
+    all_results = []
+    
+    # 4. Gerar Léxico Ofensivo (com base nos dados de treino)
     # Nota: Idealmente, isto seria feito *após* o split, apenas no train_df.
     # Mas para simplificar, geramos com todos os dados como no teu script.
-    lexico_automatico = gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3)
+    lexico_automatico = gerar_lexico_ofensivo(train_df, min_ratio=5, min_freq=3)
     COMBINED_LEXICON = OFFENSIVE_TERMS.union(lexico_automatico)
     
-    # 4. Extrair Feature de Contagem Ofensiva
+    # 5. Extrair Feature de Contagem Ofensiva
     df['offensive_term_count'] = df['tokens_no_punct'].apply(lambda tokens: sum(1 for token in tokens if token in COMBINED_LEXICON))
     
     print(f"Total de {len(df)} amostras processadas.")

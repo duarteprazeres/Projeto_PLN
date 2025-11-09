@@ -3,13 +3,13 @@ Melhores Parâmetros: {'clf__C': 0.1}
 
               precision    recall  f1-score   support
 
-Não Ofensivo       0.80      0.97      0.88      1050
-    Ofensivo       0.96      0.76      0.85      1050
+Não Ofensivo       0.76      0.93      0.83      1050
+    Ofensivo       0.91      0.70      0.79      1050
 
-    accuracy                           0.86      2100
-   macro avg       0.88      0.86      0.86      2100
-weighted avg       0.88      0.86      0.86      2100
+    accuracy                           0.81      2100
+   macro avg       0.83      0.81      0.81      2100
+weighted avg       0.83      0.81      0.81      2100
 
 Matriz de Confusão:
-[[1016   34]
- [ 251  799]]
+[[975  75]
+ [314 736]]

@@ -1,15 +1,15 @@
 Modelo: SVM Linear com Features: Ab. 3: Híbrida
-Melhores Parâmetros: {'clf__C': 0.1}
+Melhores Parâmetros: {'clf__C': 1}
 
               precision    recall  f1-score   support
 
-Não Ofensivo       0.81      0.96      0.88      1050
-    Ofensivo       0.95      0.77      0.85      1050
+Não Ofensivo       0.80      0.87      0.83      1050
+    Ofensivo       0.86      0.78      0.82      1050
 
-    accuracy                           0.87      2100
-   macro avg       0.88      0.87      0.87      2100
-weighted avg       0.88      0.87      0.87      2100
+    accuracy                           0.83      2100
+   macro avg       0.83      0.83      0.83      2100
+weighted avg       0.83      0.83      0.83      2100
 
 Matriz de Confusão:
-[[1006   44]
- [ 237  813]]
+[[912 138]
+ [226 824]]

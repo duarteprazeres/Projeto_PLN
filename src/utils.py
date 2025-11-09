@@ -81,7 +81,7 @@ OFFENSIVE_TERMS = {
     'caluniar', 'difamar', 'xingar', 'processar'
 }
 
-def gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3, tokens_col_candidates=None):
+def gerar_lexico_ofensivo(train_df, min_ratio=5, min_freq=3, tokens_col_candidates=None):
     """
     Extrai termos ofensivos automáticos a partir de uma coluna de tokens.
 
