@@ -1,0 +1,15 @@
+Modelo: SVM Linear com Features: Ab. 2: Linguística
+Melhores Parâmetros: {'clf__C': 0.1}
+
+              precision    recall  f1-score   support
+
+Não Ofensivo       0.80      0.97      0.88      1050
+    Ofensivo       0.96      0.76      0.85      1050
+
+    accuracy                           0.86      2100
+   macro avg       0.88      0.86      0.86      2100
+weighted avg       0.88      0.86      0.86      2100
+
+Matriz de Confusão:
+[[1016   34]
+ [ 251  799]]

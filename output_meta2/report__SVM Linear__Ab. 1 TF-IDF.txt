@@ -1,0 +1,15 @@
+Modelo: SVM Linear com Features: Ab. 1: TF-IDF
+Melhores Parâmetros: {'clf__C': 1}
+
+              precision    recall  f1-score   support
+
+Não Ofensivo       0.80      0.84      0.82      1050
+    Ofensivo       0.83      0.79      0.81      1050
+
+    accuracy                           0.82      2100
+   macro avg       0.82      0.82      0.82      2100
+weighted avg       0.82      0.82      0.82      2100
+
+Matriz de Confusão:
+[[884 166]
+ [218 832]]

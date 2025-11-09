@@ -81,16 +81,43 @@ OFFENSIVE_TERMS = {
     'caluniar', 'difamar', 'xingar', 'processar'
 }
 
-def gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3):
+def gerar_lexico_ofensivo(df, min_ratio=5, min_freq=3, tokens_col_candidates=None):
     """
-    Extrai termos ofensivos automáticos: presentes em ofensivos com frequência
-    muito superior à de não ofensivos (min_ratio vezes mais), e com frequência mínima min_freq.
-    É 100% automático e não depende de filtro manual.
+    Extrai termos ofensivos automáticos a partir de uma coluna de tokens.
+
+    Parâmetros:
+    - df: DataFrame com colunas 'label' e uma coluna de tokens (lista de tokens por linha).
+    - min_ratio: razão mínima entre frequência em ofensivos vs não-ofensivos para considerar um termo ofensivo.
+    - min_freq: frequência mínima no conjunto ofensivo.
+    - tokens_col_candidates: lista opcional de nomes de coluna a procurar (ex.: ['processed_tokens_no_punct', 'tokens_no_punct']).
+
+    A função tenta detectar automaticamente a coluna de tokens mais provável se não for fornecida.
     """
-    ofensivos = df[df['label'] == 1]['processed_tokens_no_punct'].explode()
-    nao_ofensivos = df[df['label'] == 0]['processed_tokens_no_punct'].explode()
+    # Colunas candidatas padrão (mantemos compatibilidade com scripts anteriores)
+    if tokens_col_candidates is None:
+        tokens_col_candidates = ['processed_tokens_no_punct', 'tokens_no_punct', 'processed_tokens', 'tokens']
+
+    tokens_col = None
+    for c in tokens_col_candidates:
+        if c in df.columns:
+            tokens_col = c
+            break
+
+    if tokens_col is None:
+        raise KeyError(
+            "Nenhuma coluna de tokens encontrada no DataFrame. Procure uma coluna como 'processed_tokens_no_punct' ou 'tokens_no_punct'."
+        )
+
+    ofensivos_series = df[df['label'] == 1][tokens_col].explode()
+    nao_ofensivos_series = df[df['label'] == 0][tokens_col].explode()
+
+    # Converter para listas filtrando None/NaN
+    ofensivos = [t for t in ofensivos_series.tolist() if t is not None]
+    nao_ofensivos = [t for t in nao_ofensivos_series.tolist() if t is not None]
+
     freq_of = Counter(ofensivos)
     freq_no = Counter(nao_ofensivos)
+
     termos = []
     for term in freq_of:
         if freq_of[term] < min_freq:
