@@ -99,7 +99,7 @@ def gerar_lexico_ofensivo(train_df, min_ratio=5, min_freq=3, tokens_col_candidat
 
     tokens_col = None
     for c in tokens_col_candidates:
-        if c in df.columns:
+        if c in train_df.columns:
             tokens_col = c
             break
 
@@ -108,8 +108,8 @@ def gerar_lexico_ofensivo(train_df, min_ratio=5, min_freq=3, tokens_col_candidat
             "Nenhuma coluna de tokens encontrada no DataFrame. Procure uma coluna como 'processed_tokens_no_punct' ou 'tokens_no_punct'."
         )
 
-    ofensivos_series = df[df['label'] == 1][tokens_col].explode()
-    nao_ofensivos_series = df[df['label'] == 0][tokens_col].explode()
+    ofensivos_series = train_df[train_df['label'] == 1][tokens_col].explode()
+    nao_ofensivos_series = train_df[train_df['label'] == 0][tokens_col].explode()
 
     # Converter para listas filtrando None/NaN
     ofensivos = [t for t in ofensivos_series.tolist() if t is not None]
