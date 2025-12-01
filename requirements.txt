@@ -1,0 +1,10 @@
+torch
+transformers
+accelerate
+pandas
+scikit-learn
+huggingface_hub
+protobuf
+sentencepiece
+bitsandbytes
+fsspec
