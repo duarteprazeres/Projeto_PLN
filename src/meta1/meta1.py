@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from collections import Counter
 import os
 import re # Importar regex
-from utils import preprocess_text, calculate_metrics, OFFENSIVE_TERMS, ATTACK_INTENT_TERMS, get_sentiment_score
+from meta1.utils import preprocess_text, calculate_metrics, OFFENSIVE_TERMS, ATTACK_INTENT_TERMS, get_sentiment_score
 import nltk
 import spacy 
 # data required for the examples and exercises in the book
