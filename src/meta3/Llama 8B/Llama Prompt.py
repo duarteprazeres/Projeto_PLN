@@ -7,10 +7,10 @@ import platform
 
 # --- CONFIGURAÇÕES GERAIS ---
 DATASET_URL = "hf://datasets/franciellevargas/HateBR/HateBR.csv" 
-AMOSTRA_TAMANHO = 1000  # 
-MODEL_ID = "google/gemma-2-2b-it" 
+AMOSTRA_TAMANHO = 100  # 
+MODEL_ID = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
-print(f"--> A iniciar pipeline com o modelo: {MODEL_ID}")
+print(f"--> AODEL_I iniciar pipeline com o modelo: {MODEL_ID}")
 print(f"--> Sistema: {platform.system()} | Processador: {platform.processor()}")
 
 # --- 1. CONFIGURAÇÃO DE HARDWARE (Universal) ---
@@ -56,6 +56,10 @@ except Exception as e:
 # --- 3. CARREGAR MODELO ---
 try:
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    terminators = [
+        tokenizer.eos_token_id,
+        tokenizer.convert_tokens_to_ids("<|eot_id|>")
+    ]
     pipe = pipeline("text-generation", model=MODEL_ID, model_kwargs=model_kwargs, device_map="auto")
     print("--> Modelo pronto!")
 except Exception as e:
@@ -89,7 +93,7 @@ def get_prompt_3_fewshot_advanced(texto):
     # Prompt 3: Few-Shot Focado em Casos Difíceis (Ironia/Crítica vs Ódio)
     return [{"role": "user", "content": f"""
     Analisa o comentário para detetar discurso de ódio.
-    Distingue entre crítica válida (Não-ofensivo) e insultos (Ofensivo).
+    Distingue entre crítica negativa (Não-ofensivo) e discurso de ódio e insultos (Ofensivo).
     
     Exemplos:
     "Não concordo nada contigo." -> Não-ofensivo
@@ -104,8 +108,8 @@ def get_prompt_4_persona(texto):
     return [{"role": "user", "content": f"""
     Tu és um Moderador de Conteúdo de uma rede social.
     A tua tarefa é identificar discursos ofensivos, toxico ou de ódio.
-    - Muita atenção, se for apenas opinião negativa, marca 'Não-ofensivo'.
-    - Se tiver insultos, ofensas, insultos ou ataques pessoais, marca 'Ofensivo'.
+    - Se for apenas opinião negativa marca 'Não-ofensivo'.
+    - Se tiver insultos, ofensas, ou ataques pessoais, marca 'Ofensivo'.
     
     Comentário: "{texto}"
     Classificação (Ofensivo/Não-ofensivo):"""}]
@@ -137,7 +141,7 @@ for num_prompt, func_prompt in prompts_list:
         messages = func_prompt(row['texto'])
         
         # Inferência
-        saida = pipe(messages, max_new_tokens=10, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        saida = pipe(messages, max_new_tokens=10, do_sample=False, pad_token_id=tokenizer.eos_token_id, eos_token_id=terminators)
         res_limpa = limpar_resposta(saida[0]["generated_text"][-1]["content"])
         predicoes.append(res_limpa)
         
@@ -145,8 +149,8 @@ for num_prompt, func_prompt in prompts_list:
     
         
 
-        print(i, end="", flush=True)
-        i = i+1
+        print('.', end="", flush=True)
+        
     
     # Guardar resultados desta prompt numa coluna temporária para cálculo
     col_name = f"pred_prompt_{num_prompt}"
