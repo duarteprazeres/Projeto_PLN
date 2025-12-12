@@ -129,15 +129,25 @@ def limpar_resposta(texto_gerado):
     return "Erro"
 
 # --- 5. EXECUÇÃO EM LOOP ---
-i=1
+# Alterámos a lista para conter apenas a tupla da Prompt 3
+prompts_list = [
+    (3, get_prompt_3_fewshot_advanced)
+]
+
+print(f"--> A iniciar execução apenas para a PROMPT 3...")
+
 for num_prompt, func_prompt in prompts_list:
-    print(f"\n A executar PROMPT {num_prompt}...")
+    print(f"\n A executar PROMPT {num_prompt} (Few-Shot Advanced)...")
     
     predicoes = []
     start_time = time.time()
     
+    # Adicionamos um contador manual para feedback visual
+    counter = 0
+    total = len(df)
+
     for i, row in df.iterrows():
-        # Gerar a prompt específica desta rodada
+        # Gerar a prompt específica
         messages = func_prompt(row['texto'])
         
         # Inferência
@@ -145,26 +155,21 @@ for num_prompt, func_prompt in prompts_list:
         res_limpa = limpar_resposta(saida[0]["generated_text"][-1]["content"])
         predicoes.append(res_limpa)
         
-        # Feedback visual simples (ponto a cada inferência)
-    
-        
-
+        # Feedback visual
+        counter += 1
         print('.', end="", flush=True)
-        
+        if counter % 50 == 0:  # Quebra de linha a cada 50 para não poluir o terminal
+            print(f" ({counter}/{total})")
     
-    # Guardar resultados desta prompt numa coluna temporária para cálculo
+    # Guardar resultados desta prompt
     col_name = f"pred_prompt_{num_prompt}"
     df[col_name] = predicoes
     
     # Métricas
-    # 1. Calcular acurácia REAL (considerando "Erro" como falha)
-    # Usamos o df completo, não o filtrado
     acc = accuracy_score(df['label_texto'], df[col_name])
-    
-    # 2. Contar quantos erros de formatação ocorreram
     num_erros_formato = len(df[df[col_name] == "Erro"])
     
-    print(f"\n Prompt {num_prompt} terminada!")
+    print(f"\n\n Prompt {num_prompt} terminada!")
     print(f"   Acurácia Real: {acc:.2f}")
     print(f"   Respostas Inválidas (Erro): {num_erros_formato}/{len(df)}")
     
@@ -172,12 +177,16 @@ for num_prompt, func_prompt in prompts_list:
     nome_modelo_limpo = MODEL_ID.split('/')[-1]
     nome_ficheiro = f"resultados_{num_prompt}_{nome_modelo_limpo}.csv"
     
-    # Guardamos apenas as colunas relevantes para este ficheiro
     df_final = df[['texto', 'label_real', 'label_texto', col_name]].copy()
     df_final.rename(columns={col_name: 'predicao'}, inplace=True)
     
+    # Nota: Certifica-te que a pasta 'src/meta3/' existe, senão vai dar erro
+    import os
+    if not os.path.exists("src/meta3"):
+        os.makedirs("src/meta3")
+        
     path_guardar = f"src/meta3/{nome_ficheiro}"
     df_final.to_csv(path_guardar, index=False)
     print(f" Ficheiro guardado: {path_guardar}")
 
-print("\n Processo concluído para todas as 4 prompts!")
+print("\n Processo concluído para a Prompt 3!")
